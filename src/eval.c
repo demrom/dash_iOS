@@ -1105,7 +1105,7 @@ bail:
 				argv[0] = newName;
 			} else {
 				free(newName);
-				sh_warnx("%s: %s", argv[0], errmsg(ENOENT, E_EXEC));
+				warn_command_error(argv[0], ENOENT);
 			}
 		}
 		if (cmdentry.cmdtype == CMDERROR) 

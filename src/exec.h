@@ -70,6 +70,9 @@ void shellexec(char **, const char *, int)
 int padvance_magic(const char **path, const char *name, int magic);
 int hashcmd(int, char **);
 void find_command(char *, struct cmdentry *, int, const char *);
+#if TARGET_OS_IPHONE
+void warn_command_error(const char *, int) __attribute__((visibility("hidden")));
+#endif
 struct builtincmd *find_builtin(const char *);
 void hashcd(void);
 void changepath(const char *);

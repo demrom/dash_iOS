@@ -102,6 +102,44 @@ STATIC void addcmdentry(char *, struct cmdentry *);
 STATIC int describe_command(struct output *, char *, const char *, int);
 
 
+#if TARGET_OS_IPHONE
+/* Report a failed command using the redirections no command thread will adopt. */
+void
+warn_command_error(const char *name, int e)
+{
+	FILE *saved[] = { thread_stdin, thread_stdout, thread_stderr };
+	FILE *saved_warning = out2->stream;
+	FILE *active[3];
+	int i, j;
+
+	ios_activateChildStreams(&saved[0], &saved[1], &saved[2]);
+	out2->stream = thread_stderr;
+	sh_warnx("%s: %s", name, errmsg(e, E_EXEC));
+	flushout(out2);
+	out2->stream = saved_warning;
+	active[0] = thread_stdin;
+	active[1] = thread_stdout;
+	active[2] = thread_stderr;
+	thread_stdin = saved[0];
+	thread_stdout = saved[1];
+	thread_stderr = saved[2];
+	/* Preserve borrowed streams and close aliased redirections once. */
+	for (i = 0; i < 3; i++) {
+		for (j = 0; j < 3; j++)
+			if (active[i] == saved[j])
+				break;
+		if (j < 3)
+			continue;
+		for (j = 0; j < i; j++)
+			if (active[i] == active[j])
+				break;
+		if (j == i)
+			fclose(active[i]);
+	}
+}
+#endif
+
+
 /*
  * Exec a program.  Never returns.  If you change this routine, you may
  * have to change the find_command routine as well.
@@ -498,7 +536,11 @@ loop:
 		// Don't write "not found" errors yet.
 		if (e != ENOENT) {
 #endif
+#if TARGET_OS_IPHONE
+		warn_command_error(name, e);
+#else
 		sh_warnx("%s: %s", name, errmsg(e, E_EXEC));
+#endif
 #if TARGET_OS_IPHONE
 		entry->cmdtype = CMDERROR;
 		return;
