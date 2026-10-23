@@ -26,7 +26,7 @@ Return to the repository root, copy the prerequisite's `Resources/commandDiction
 
 ```sh
 xcrun --sdk iphonesimulator clang -target arm64-apple-ios15.0-simulator -isysroot "$simulator_sdk" -fobjc-arc -Wall -Wextra -Wno-unused-parameter -F .build/probe/Frameworks -framework ios_system -framework Foundation -Wl,-rpath,@executable_path/Frameworks -Wl,-export_dynamic tests/pipelines.m -o .build/probe/pipelines
-for scenario in group early-reader heredoc subshell-next subshell-status wasm-producer-eof wasm-producer-fails wasm-consumer-skips pipeline-environment; do
+for scenario in group early-reader heredoc subshell-next subshell-status wasm-producer-eof wasm-producer-fails wasm-consumer-skips pipeline-environment pipeline-error-unwind; do
     xcrun simctl spawn "$SIMULATOR_UDID" "$PWD/.build/probe/pipelines" "$PWD/.build/dash/src/dash" "$scenario"
 done
 ```
@@ -51,3 +51,5 @@ xcrun simctl spawn "$SIMULATOR_UDID" "$PROBE/login-profile"
 ```
 
 The iOS login marker must be exported through Dash's variable table so a child inherits it. Login selection must happen after option parsing: noninteractive commands and scripts must not implicitly read the login profile. Removing only the exported Dash variable from the corrected code makes the interactive child reread the profile and exhaust the pool: `completed=0 bytes=66 visits=6 FAIL`, exit 1. With corrected login selection and marker export, it reports `completed=8 bytes=139 visits=8 PASS`, exit 0. This checks arm64 Simulator command behavior; physical-device startup remains a separate check.
+
+The `pipeline-error-unwind` case enables socket mode and supplies the application's optional foreground-PID exchange callback. A producer builtin rejects an invalid export name, unwinds the pipeline and lets its first-line consumer finish without input. The real Dash command returns status 1 with empty output, and the application callback must be back at its initial idle value. The pre-correction pipeline leaves a stale cancellation target. This checks the optional embedding callback contract without asserting the order of internal calls.
