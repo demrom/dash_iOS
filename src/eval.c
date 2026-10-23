@@ -1130,9 +1130,8 @@ bail:
 			int interactiveStatusBefore = ios_storeInteractive(); 
 			int stdinFlagsBefore = fcntl(fileno(thread_stdin), F_GETFL);
 			int pid = ios_fork();
-			char** localEnvironment = listvars(0,0,NULL);
-			// pass the env variables to exec (including local vars)
-			// this is so "var=name ./scriptname" works
+			char** localEnvironment = environment();
+			// Pass exported variables and command-prefix assignments.
 			ios_execve(argv[0], argv, localEnvironment);
 			ios_waitpid(pid);
 			// store the result of executing the command:
