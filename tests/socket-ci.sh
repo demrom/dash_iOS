@@ -100,6 +100,9 @@ for name in dash dashA dashB dashC dashD dashE; do
     cp -R "$source/build/Release-iphonesimulator/$name.framework" "$probe/Frameworks/"
 done
 cp "$inputs/commandDictionary.plist" "$probe/"
+# The standalone ios_system catalogue has no Dash registration. Use the
+# app's normal command metadata for the nested login-profile invocation.
+plutil -insert dash -json '["dash.framework/dash","main","efIimnsxvVECabu","no"]' "$probe/commandDictionary.plist"
 dash="$probe/Frameworks/dash.framework/dash"
 for framework in "$probe"/Frameworks/*.framework; do codesign --force --sign - "$framework"; done
 for name in socket-input pipelines input-lifetime login-profile environment-reentry; do
