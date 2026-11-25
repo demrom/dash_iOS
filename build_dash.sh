@@ -53,7 +53,7 @@ do
   plutil -replace CFBundleExecutable -string $binary ${FRAMEWORK_DIR}/Info.plist
   plutil -replace CFBundleName -string $binary ${FRAMEWORK_DIR}/Info.plist
   plutil -replace CFBundleIdentifier -string Nicolas-Holzschuch.$binary  ${FRAMEWORK_DIR}/Info.plist
-  install_name_tool -id @rpath/$binary.framework/$binary   ${FRAMEWORK_DIR}/$binary
+  install_name_tool -id @loader_path/$binary.framework/$binary ${FRAMEWORK_DIR}/$binary
 done
 
 # then, merge them into XCframeworks:
