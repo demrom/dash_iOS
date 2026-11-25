@@ -92,17 +92,22 @@ for name in dash dashA dashB dashC dashD dashE; do test -f "$source/$name.xcfram
 
 failed=0
 sh "$source/tests/frameworks.sh" "$source" 2>&1 | tee "$work/frameworks.log" || failed=1
+sh "$source/tests/strchrnul-availability.sh" "$source/build" 2>&1 | tee "$work/strchrnul-availability.log" || failed=1
 probe="$work/probe"
 mkdir -p "$probe/Frameworks"
 cp -R "$source/ios_system.xcframework/ios-arm64_x86_64-simulator/ios_system.framework" "$probe/Frameworks/"
+for name in dash dashA dashB dashC dashD dashE; do
+    cp -R "$source/build/Release-iphonesimulator/$name.framework" "$probe/Frameworks/"
+done
 cp "$inputs/commandDictionary.plist" "$probe/"
-dash="$source/build/Release-iphonesimulator/dash.framework"
-codesign --force --sign - "$dash"
-codesign --force --sign - "$probe/Frameworks/ios_system.framework"
-xcrun --sdk iphonesimulator clang -target x86_64-apple-ios15.0-simulator -fobjc-arc -Wall -Wextra -Wno-unused-parameter \
-    -F"$probe/Frameworks" -framework ios_system -framework Foundation -Wl,-rpath,@executable_path/Frameworks \
-    -Wl,-export_dynamic "$source/tests/socket-input.m" -o "$probe/socket-input"
-codesign --force --sign - "$probe/socket-input"
+dash="$probe/Frameworks/dash.framework/dash"
+for framework in "$probe"/Frameworks/*.framework; do codesign --force --sign - "$framework"; done
+for name in socket-input pipelines input-lifetime login-profile environment-reentry; do
+    xcrun --sdk iphonesimulator clang -target x86_64-apple-ios15.0-simulator -fobjc-arc -Wall -Wextra -Wno-unused-parameter \
+        -DNDEBUG -F"$probe/Frameworks" -framework ios_system -framework Foundation -Wl,-rpath,@executable_path/Frameworks \
+        -Wl,-export_dynamic "$source/tests/$name.m" -o "$probe/$name"
+    codesign --force --sign - "$probe/$name"
+done
 
 model=com.apple.CoreSimulator.SimDeviceType.iPhone-17
 runtime=$(xcrun simctl list runtimes -j | jq -r --arg model "$model" \
@@ -115,13 +120,40 @@ device=$(xcrun simctl create Dash-Socket-Input "$model" "$runtime")
 trap 'xcrun simctl shutdown "$device" || true; xcrun simctl delete "$device"' EXIT
 xcrun simctl boot "$device"
 xcrun simctl bootstatus "$device" -b
-for scenario in line context foreground delete forward-delete raw cancel nested-cancel resize repeat; do
-    if xcrun simctl spawn "$device" "$probe/socket-input" "$dash/dash" "$scenario" > "$work/socket-$scenario.log" 2>&1; then
-        printf 'Socket probe %s: PASS\n' "$scenario"
+run() {
+    local label=$1 name=$2 status=0
+    shift 2
+    /usr/bin/time -p xcrun simctl spawn "$device" "$probe/$name" "$@" > "$work/$label.log" 2>&1 || status=$?
+    printf 'exit=%s\n' "$status" >> "$work/$label.log"
+    if [[ $status == 0 ]]; then
+        printf 'Dash probe %s: PASS\n' "$label"
     else
-        printf 'Socket probe %s: FAIL\n' "$scenario" >&2
-        tail -60 "$work/socket-$scenario.log" >&2
+        printf 'Dash probe %s: FAIL (exit %d)\n' "$label" "$status" >&2
+        tail -60 "$work/$label.log" >&2
         failed=1
     fi
+}
+for scenario in line context foreground delete forward-delete raw cancel nested-cancel resize repeat; do
+    run "socket-$scenario" socket-input "$dash" "$scenario"
 done
+for scenario in group early-reader heredoc subshell-next subshell-status wasm-producer-eof wasm-producer-fails \
+    wasm-consumer-skips pipeline-environment command-consumer pipeline-error-unwind pipeline-error-next \
+    unset-semantics unset-environment; do
+    run "pipeline-$scenario" pipelines "$dash" "$scenario"
+done
+for scenario in borrowed script stdout-alias stderr-dup; do
+    run "input-$scenario" input-lifetime "$dash" "$scenario"
+done
+run login-profile login-profile
+
+# Re-link the same objects with the README's interposition option. The
+# environment fixture supplies the embedding host's environmentVariables.
+printf 'LDFLAGS += -Wl,-flat_namespace\n' > "$work/flat-namespace.mk"
+mv "$source/src/dash" "$work/dash-before-relink"
+make -C "$source/src" -f Makefile -f "$work/flat-namespace.mk" dash > "$work/flat-namespace.log" 2>&1 || {
+    tail -60 "$work/flat-namespace.log" >&2
+    exit 1
+}
+codesign --force --sign - "$source/src/dash"
+run environment-reentry environment-reentry "$source/src/dash"
 exit "$failed"
