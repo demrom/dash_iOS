@@ -4,8 +4,8 @@ OSX_SDKROOT=$(xcrun --sdk macosx --show-sdk-path)
 IOS_SDKROOT=$(xcrun --sdk iphoneos --show-sdk-path)
 SIM_SDKROOT=$(xcrun --sdk iphonesimulator --show-sdk-path)
 
-# The SDK has strchrnul since iOS 18.4; both targets still support iOS 15.
-ac_cv_func_strchrnul=no
+# Reproduce the SDK-backed strchrnul import in both iOS slices.
+ac_cv_func_strchrnul=yes
 export ac_cv_func_strchrnul
 
 make distclean
