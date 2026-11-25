@@ -410,8 +410,8 @@ popredir(int drop)
 			// This doesn't have an effect on iOS, and it breaks the next command if builtin (ls > 1; echo Hello)
 			if (!drop)
 				dup2(rp->renamed[i], i);
-#endif
 			close(rp->renamed[i]);
+#endif
 			break;
 		}
 	}

@@ -404,13 +404,6 @@ exitshell(void)
 	}
 out:
 	exitreset();
-#if TARGET_OS_IPHONE
-	popallfiles();
-	if (parsefile->fd > 0 && parsefile->fd != fileno(thread_stdin)) {
-		close(parsefile->fd);
-		parsefile->fd = 0;
-	}
-#endif
 	/*
 	 * Disable job control so that whoever had the foreground before we
 	 * started can get it back.
