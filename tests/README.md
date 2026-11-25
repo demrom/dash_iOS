@@ -39,6 +39,8 @@ The `wasm-*` cases register a stand-in `wasm` command that stacks its call and b
 
 # Socket command input
 
+On Intel macOS with Xcode 26.6, an iOS 26 Simulator runtime that supports iPhone 17, Autoconf, Automake and jq, run `bash tests/socket-ci.sh` from the repository root. The script builds a clean copy of the checked-out commit, checks all six ZIPs through `tests/frameworks.sh`, and runs the socket scenarios on a disposable iPhone 17 Simulator. It saves the individual logs under `.build/socket-ci/`.
+
 `socket-input.m` is an embedding consumer of Dash's real entry and the public ios_system APIs. It supplies caller-owned socket streams and optional foreground-input callbacks. The registered `socket-cat` command reads an actual pipe; its CR, Ctrl-D and escape bytes bypass the line editor. Cancellation uses the published foreground PID to cancel that reader, including inside `eval`, and then runs another command. It does not qualify nested interpreter loading or a complete TUI.
 
 Build with the input-lease API from holzschu/ios_system#183, session preservation from #184, native descriptor detection from #182, and the pipeline prerequisite from holzschu/dash_iOS#1. The native framework used for these checks also includes ios_system#179. Use a framework built from those commits, its matching command dictionary, and a Simulator you own. The libedit dependency must include `libedit-socket.patch`: upstream libedit's NO_TTY path otherwise bypasses editing even with a custom reader.
