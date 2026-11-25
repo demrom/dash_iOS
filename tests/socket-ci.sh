@@ -26,6 +26,12 @@ fetch() {
 }
 fetch 'https://github.com/demrom/ios_system/releases/download/ios-system-preview-2c560334ecca/ios_system.xcframework.zip' \
     bac0689c792901cbf410899162c06ab22a950b032adfb5f94b5c3ab6a661e883 ios_system.xcframework.zip
+fetch 'https://github.com/demrom/ios_system/releases/download/ios-system-preview-2c560334ecca/files.xcframework.zip' \
+    88a9f39c248e3ab05d1110d2e0a9f602dc5da16a6fc9191574dcaa7d121efaa2 files.xcframework.zip
+fetch 'https://github.com/demrom/ios_system/releases/download/ios-system-preview-2c560334ecca/text.xcframework.zip' \
+    e6851aae912cfd0dd5cdf99f24b06c35df26bd82f3ed81566add6e6802381e4d text.xcframework.zip
+fetch 'https://github.com/holzschu/ios_system/releases/download/v3.0.5/shell.xcframework.zip' \
+    855ff9b12bfbbdbd5298324377d91e18e6ac97dbb19d3c9311ce5a023ee51b2e shell.xcframework.zip
 fetch 'https://raw.githubusercontent.com/holzschu/ios_system/f187d27373865977db4705b38d3a35eec13415ec/Resources/commandDictionary.plist' \
     7911fe0e7b1a9eb2c1ba761fe728fc3ede50093d29beb9735c0d8bb4201100b3 commandDictionary.plist
 fetch 'https://thrysoee.dk/editline/libedit-20260512-3.1.tar.gz' \
@@ -96,6 +102,10 @@ sh "$source/tests/strchrnul-availability.sh" "$source/build" 2>&1 | tee "$work/s
 probe="$work/probe"
 mkdir -p "$probe/Frameworks"
 cp -R "$source/ios_system.xcframework/ios-arm64_x86_64-simulator/ios_system.framework" "$probe/Frameworks/"
+for name in files text shell; do
+    ditto -x -k "$inputs/$name.xcframework.zip" "$work"
+    cp -R "$work/$name.xcframework/ios-arm64_x86_64-simulator/$name.framework" "$probe/Frameworks/"
+done
 for name in dash dashA dashB dashC dashD dashE; do
     cp -R "$source/build/Release-iphonesimulator/$name.framework" "$probe/Frameworks/"
 done
@@ -103,9 +113,17 @@ cp "$inputs/commandDictionary.plist" "$probe/"
 # The standalone ios_system catalogue has no Dash registration. Use the
 # app's normal command metadata for the nested login-profile invocation.
 plutil -insert dash -json '["dash.framework/dash","main","efIimnsxvVECabu","no"]' "$probe/commandDictionary.plist"
+# Match the ordinary a-Shell bundle's registry and executable PATH markers.
+plutil -insert sleep -json '["shell.framework/shell","sleep_main","","none"]' "$probe/commandDictionary.plist"
+mkdir "$probe/bin"
+for command in cat dash ls rm sh sleep; do
+    touch "$probe/bin/$command"
+    chmod +x "$probe/bin/$command"
+done
+cp "$source/tests/descriptor-lifetime.sh" "$probe/"
 dash="$probe/Frameworks/dash.framework/dash"
 for framework in "$probe"/Frameworks/*.framework; do codesign --force --sign - "$framework"; done
-for name in socket-input pipelines input-lifetime login-profile environment-reentry; do
+for name in socket-input pipelines input-lifetime login-profile environment-reentry descriptor-lifetime; do
     xcrun --sdk iphonesimulator clang -target x86_64-apple-ios15.0-simulator -fobjc-arc -Wall -Wextra -Wno-unused-parameter \
         -DNDEBUG -F"$probe/Frameworks" -framework ios_system -framework Foundation -Wl,-rpath,@executable_path/Frameworks \
         -Wl,-export_dynamic "$source/tests/$name.m" -o "$probe/$name"
@@ -148,6 +166,11 @@ for scenario in borrowed script stdout-alias stderr-dup; do
     run "input-$scenario" input-lifetime "$dash" "$scenario"
 done
 run login-profile login-profile
+run descriptor-lifetime descriptor-lifetime "$probe/descriptor-lifetime.sh" "$dash"
+if ! grep -Fxq DESCRIPTOR_LIFETIME_PASS "$work/descriptor-lifetime.log"; then
+    echo 'Dash descriptor-lifetime script did not finish its checks' >&2
+    failed=1
+fi
 
 # Re-link the same objects with the README's interposition option. The
 # environment fixture supplies the embedding host's environmentVariables.
